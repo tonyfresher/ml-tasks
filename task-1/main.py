@@ -42,7 +42,7 @@ if __name__ == '__main__':
 
     data_train, data_predict = data[data.pidAggr.notna()], data[data.pidAggr.isna()]
 
-    data_train = data_train.query('pidAggr.notna() & pidAggr in [1, 2]')
+    data_train = data_train.query('pidAggr in [1, 2]')
     data_train.drop(axis=1,
                     labels=['id', 'dem_cand', 'rep_cand'] +
                     [f'ISSUES_{n}' for n in range(1, 22)],
