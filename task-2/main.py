@@ -10,6 +10,8 @@ from collections import defaultdict
 from math import log
 
 
+# Data Preparation
+
 def get_messages(folder):
     for filename in os.listdir(folder):
         with open(os.path.join(folder, filename), errors='ignore') as eml:
@@ -31,7 +33,7 @@ def normalize_text(text):
     words = nltk.word_tokenize(text.lower())
     filtered = filter(lambda word: word not in nltk.corpus.stopwords.words('english'), words)
 
-    return ' '.join(filtered) if len(words) > 0 else ' '
+    return ' '.join(filtered) + ' '
 
 def get_data_frame_from_train_messages():
     notspam_messages = [normalize_text(extract_body(m)) for m in get_messages('./data/notSpam')]
@@ -52,6 +54,7 @@ def get_data_frame_from_unknown_messages():
         'message': unknown_messages
     })
 
+# Naive Bayes implementation
 
 def fit(train_set):
     classes, frequencies = defaultdict(lambda: 0), defaultdict(lambda: 0)
@@ -75,20 +78,32 @@ def classify(classifier, features):
 
     return min(classes.keys(), key = log_metrics)
 
-def predict(classifier, set):
-    return [classify(classifier, message.split()) for message in set]
+def predict(classifier, predict_set):
+    return [classify(classifier, message.split()) for message in predict_set]
 
 
 if __name__ == '__main__':
+    # get_data_frame_from_train_messages().to_csv('./data/train.csv', index_label=False)
+    # get_data_frame_from_unknown_messages().to_csv('./data/unknown.csv', index_label=False)
+
     train_df = pd.read_csv('./data/train.csv')
+    # unknown_df = pd.read_csv('./data/unknown.csv')
 
     message_train, message_test, label_train, label_test = train_test_split(train_df.message, train_df.spam,
                                                                             test_size=0.3, shuffle=True)
-
     message_train_features = \
         [(message.split(), label) for message, label in zip(message_train, label_train)]
+
     classifier = fit(message_train_features)
 
     predicted = predict(classifier, message_test)
+
     accuracy = np.mean(predicted == label_test)
     print(accuracy)
+
+    # predicted = predict(classifier, unknown_df.message)
+    # pd.DataFrame({
+    #     'filename': unknown_df.filename,
+    #     'spam': predicted
+    # }).to_csv('unknown_predicted.csv', index=False)
+
