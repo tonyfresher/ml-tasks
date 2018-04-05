@@ -17,6 +17,13 @@ def get_messages(folder):
         with open(os.path.join(folder, filename), errors='ignore') as eml:
             yield email.message_from_file(eml)
 
+def extract_content(message):
+    return f'''
+        {message["from"].replace(">").replace("<") or ""}
+        {message["subject"] or ""}
+        {extract_body(message)}
+    '''
+
 def extract_body(message):
     if message.is_multipart():
         return '\n'.join(map(extract_body, message.get_payload()))
@@ -36,8 +43,8 @@ def normalize_text(text):
     return ' '.join(filtered) + ' '
 
 def get_data_frame_from_train_messages():
-    notspam_messages = [normalize_text(extract_body(m)) for m in get_messages('./data/notSpam')]
-    spam_messages = [normalize_text(extract_body(m)) for m in get_messages('./data/spam')]
+    notspam_messages = [normalize_text(extract_content(m)) for m in get_messages('./data/notSpam')]
+    spam_messages = [normalize_text(extract_content(m)) for m in get_messages('./data/spam')]
 
     return pd.DataFrame({
         'message': notspam_messages + spam_messages,
@@ -47,7 +54,7 @@ def get_data_frame_from_train_messages():
 
 def get_data_frame_from_unknown_messages():
     filenames = os.listdir('./data/unknown')
-    unknown_messages = [normalize_text(extract_body(m)) for m in get_messages('./data/unknown')]
+    unknown_messages = [normalize_text(extract_content(m)) for m in get_messages('./data/unknown')]
 
     return pd.DataFrame({
         'filename': filenames,
