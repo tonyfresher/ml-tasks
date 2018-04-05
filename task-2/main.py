@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
 from math import log
-
+from multiprocessing import Pool
 
 # Data Preparation
 
@@ -17,10 +17,12 @@ def get_messages(folder):
         with open(os.path.join(folder, filename), errors='ignore') as eml:
             yield email.message_from_file(eml)
 
+def get_text(message):
+    return normalize_text(extract_content(message))
+
 def extract_content(message):
     return f'''
-        {message["from"].replace(">").replace("<") or ""}
-        {message["subject"] or ""}
+        {message["from"] or ""}
         {extract_body(message)}
     '''
 
@@ -43,8 +45,9 @@ def normalize_text(text):
     return ' '.join(filtered) + ' '
 
 def get_data_frame_from_train_messages():
-    notspam_messages = [normalize_text(extract_content(m)) for m in get_messages('./data/notSpam')]
-    spam_messages = [normalize_text(extract_content(m)) for m in get_messages('./data/spam')]
+    pool = Pool()
+    notspam_messages = pool.map(get_text, get_messages('./data/notSpam'))
+    spam_messages = pool.map(get_text, get_messages('./data/spam'))
 
     return pd.DataFrame({
         'message': notspam_messages + spam_messages,
@@ -54,7 +57,9 @@ def get_data_frame_from_train_messages():
 
 def get_data_frame_from_unknown_messages():
     filenames = os.listdir('./data/unknown')
-    unknown_messages = [normalize_text(extract_content(m)) for m in get_messages('./data/unknown')]
+
+    pool = Pool()
+    unknown_messages = pool.map(get_text, get_messages('./data/unknown'))
 
     return pd.DataFrame({
         'filename': filenames,
@@ -93,7 +98,7 @@ if __name__ == '__main__':
     # get_data_frame_from_train_messages().to_csv('./data/train.csv', index_label=False)
     # get_data_frame_from_unknown_messages().to_csv('./data/unknown.csv', index_label=False)
 
-    train_df = pd.read_csv('./data/train.csv')
+    train_df = pd.read_csv('./data/train_with_subject.csv')
     # unknown_df = pd.read_csv('./data/unknown.csv')
 
     message_train, message_test, label_train, label_test = train_test_split(train_df.message, train_df.spam,
