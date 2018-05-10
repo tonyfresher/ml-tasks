@@ -5,13 +5,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 from sklearn.linear_model import SGDClassifier
-from sklearn.model_selection import GridSearchCV
 
 
 def gain_train_data():
     df = pd.read_csv('./data/train.csv', delimiter='\t').dropna()
 
-    return train_test_split(df.name, df.isOrg, test_size=0.4)
+    return train_test_split(df.name, df.isOrg, test_size=0.3)
 
 def create_model():
     return Pipeline([
@@ -20,7 +19,8 @@ def create_model():
         ('clf', SGDClassifier(loss='perceptron',
                               penalty='l2',
                               alpha=1e-5,
-                              tol=1e-3))
+                              tol=1e-3,
+                              class_weight='balanced'))
     ])
 
 def validate(model, data_test, answer_test):
