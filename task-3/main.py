@@ -1,23 +1,26 @@
 import pandas as pd
 import numpy as np
+import math
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import GridSearchCV
-import math
 
 
 def gain_train_data():
     df = pd.read_csv('./data/train.csv', delimiter='\t').dropna()
 
-    return train_test_split(df.name, df.isOrg, test_size=0.3)
+    return train_test_split(df.name, df.isOrg, test_size=0.4)
 
 def create_model():
     return Pipeline([
         ('vect', CountVectorizer(ngram_range=(1, 1))),
         ('tfidf', TfidfTransformer()),
-        ('clf', SGDClassifier(loss='squared_hinge', penalty='l2', alpha=1e-5))
+        ('clf', SGDClassifier(loss='perceptron',
+                              penalty='l2',
+                              alpha=1e-5,
+                              tol=1e-3))
     ])
 
 def validate(model, data_test, answer_test):
@@ -34,7 +37,6 @@ def validate(model, data_test, answer_test):
 
     accuracy = math.sqrt(people_accuracy * organisations_accuracy)
     print(accuracy, people_accuracy, organisations_accuracy)
-
 
 def predict_and_write(model, data_predict, filename):
     preprocessed = data_predict.name.apply(lambda name: '' if pd.isnull(name) else name)
