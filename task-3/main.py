@@ -1,52 +1,36 @@
 import pandas as pd
 import numpy as np
 import math
-from functools import reduce
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.linear_model import LogisticRegression, SGDClassifier, PassiveAggressiveClassifier
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
-from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
-from collections import defaultdict
+from sklearn.linear_model import SGDClassifier
 
 
-def gain_data():
-    data = pd.read_csv('./data/train.csv', delimiter='\t').dropna()
+def gain_train_data():
+    df = pd.read_csv('./data/train.csv', delimiter='\t').dropna()
 
-    data.name = data[['name', 'isOrg']].apply(preprocess, axis=1)
-
-    return train_test_split(data.name, data.isOrg, test_size=0.3)
-
-def preprocess(row):
-    name, is_organisation = row
-
-    name = (name
-        .replace('"', '')
-        .lower())
-
-    return name.split()[0] if is_organisation else name
+    return train_test_split(df.name, df.isOrg, test_size=0.3)
 
 def create_model():
     return Pipeline([
         ('vect', CountVectorizer(ngram_range=(1, 1))),
         ('tfidf', TfidfTransformer()),
-        ('reg', RandomForestClassifier(n_estimators=15,
-                                       criterion='entropy',
-                                       min_samples_split=2,
-                                       min_samples_leaf=2))
+        ('clf', SGDClassifier(loss='perceptron',
+                              penalty='l2',
+                              alpha=1e-5,
+                              tol=1e-3,
+                              class_weight='balanced'))
     ])
 
-
-def validate(model, data_test, answer_test):    
-    # "Accuracy" metrics checking
+def validate(model, data_test, answer_test):
     test_df = pd.concat([data_test, answer_test], axis=1)
 
     people_df = test_df[~test_df.isOrg]
     organisations_df = test_df[test_df.isOrg]
 
-    predicted_people = predict(model, people_df.name)
-    predicted_organisations = predict(model, organisations_df.name)
+    predicted_people = model.predict(people_df.name)
+    predicted_organisations = model.predict(organisations_df.name)
 
     people_accuracy = np.mean(predicted_people == people_df.isOrg)
     organisations_accuracy = np.mean(predicted_organisations == organisations_df.isOrg)
@@ -54,60 +38,22 @@ def validate(model, data_test, answer_test):
     accuracy = math.sqrt(people_accuracy * organisations_accuracy)
     print(accuracy, people_accuracy, organisations_accuracy)
 
-
 def predict_and_write(model, data_predict, filename):
-    predicted = model.predict(data_predict)
+    preprocessed = data_predict.name.apply(lambda name: '' if pd.isnull(name) else name)
 
-    with open(filename, 'w+') as output:
-        predicted_table = zip(range(len(predicted)), data_predict, predicted)
-        tsv_table = '\n'.join(f'{id}\t{name}\t{value}' for id, name, value in predicted_table)
-        output.write(tsv_table)
+    predicted = pd.Series(data=model.predict(preprocessed), name='prediction')
 
-def fit(train_set):
-    classes, frequencies = defaultdict(lambda: 0), defaultdict(lambda: 0)
-    for features, label in train_set:
-        classes[label] += 1
-        for feature in features:
-            frequencies[label, feature] += 1
-
-    for label, feature in frequencies:
-        frequencies[label, feature] /= classes[label]
-
-    for cl in classes:
-        classes[cl] /= len(train_set)
-
-    return classes, frequencies
-
-def classify(classifier, features):
-    classes, probabilities = classifier
-    log_metrics = lambda cl: -math.log(classes[cl]) \
-        + sum(-math.log(probabilities.get((cl, ft), 10 ** (-7))) for ft in features)
-
-    return min(classes.keys(), key = log_metrics)
-
-def predict(classifier, predict_set):
-    return [classify(classifier, message.split()) for message in predict_set]
+    predicted_df = pd.concat([data_predict.name, predicted], axis=1)
+    predicted_df.to_csv(filename, sep='\t')
 
 
 if __name__ == '__main__':
-    data_train, data_test, answer_train, answer_test = gain_data()
+    data_train, data_test, answer_train, answer_test = gain_train_data()
 
     model = create_model()
-    features = \
-        [(name.split(), label) for name, label in zip(data_train, answer_train)]
-
-    model = fit(features)
-
-    # parameters = {
-    #     'reg__tol': [1e-5, 1e-3],
-    #     'reg__penalty': ['l1', 'l2'],
-    #     'reg__C': [1, 10]
-    # }
-
-    # gs_clf = GridSearchCV(model, parameters)
-    # gs_clf = gs_clf.fit(data_train, answer_train)
-    # print(gs_clf.best_score_, gs_clf.best_params_)
+    model.fit(data_train, answer_train)
 
     validate(model, data_test, answer_test)
-    # predict_and_write(model, data_predict, './data/predicted.csv')
-    
+
+    data_predict = pd.read_csv('./data/test.csv', delimiter='\t')
+    predict_and_write(model, data_predict, './data/predicted.csv')
